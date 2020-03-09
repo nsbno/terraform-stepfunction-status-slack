@@ -1,1 +1,1 @@
-# -terraform-stepfunction-status-slack
+# terraform-stepfunction-status-slack

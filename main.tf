@@ -37,3 +37,4 @@ resource "aws_iam_role_policy" "logs_to_stepfunction_status_slack_lambda" {
   policy = data.aws_iam_policy_document.logs_for_lambda.json
   role   = aws_iam_role.lambda_stepfunction_status_slack_exec.id
 }
+

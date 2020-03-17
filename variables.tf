@@ -13,6 +13,12 @@ variable "slackwebhook" {
   type = string
 }
 
+variable "statestonotify" {
+  description = "Sets the lambda to forward events based on values: all or errors"
+  type = string
+  default = "all"
+}
+
 variable "tags" {
   description = "A map of tags (key-value pairs) passed to resources."
   type        = map(string)

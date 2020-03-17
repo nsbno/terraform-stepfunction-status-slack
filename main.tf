@@ -23,6 +23,7 @@ resource "aws_lambda_function" "stepfunction_status_slack" {
   environment {
     variables = {
       slackwebhook = var.slackwebhook
+      statestonotify = var.statestonotify
     }
   }
 }

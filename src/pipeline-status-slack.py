@@ -14,7 +14,8 @@ logger.setLevel(logging.INFO)
 
 def lambda_handler(event, context):
     logger.info(event)
-    slack_webhook_url = os.environ['SLACK_WEBHOOK']
+    slack_webhook_url = os.environ['slackwebhook']
+    state_to_notify = os.environ['statestonotify']
 
     color = "danger" if event['detail']['status'] in ["FAILED", "ABORTED", "TIMED_OUT"] else "good"
 
@@ -61,8 +62,9 @@ def lambda_handler(event, context):
     try:
         json_data = json.dumps(slack_attachment)
         logger.info('\nOutput ' + str(json_data))
-        slack_request = urllib.request.Request(slack_webhook_url, data=json_data.encode('ascii'),
-                                               headers={'Content-Type': 'application/json'})
-        slack_response = urllib.request.urlopen(slack_request)
+        if (color == "danger" or state_to_notify == "all"):
+            slack_request = urllib.request.Request(slack_webhook_url, data=json_data.encode('ascii'),
+                                                headers={'Content-Type': 'application/json'})
+            slack_response = urllib.request.urlopen(slack_request)
     except Exception as em:
         logger.exception("EXCEPTION: " + str(em))

@@ -38,3 +38,35 @@ resource "aws_iam_role_policy" "logs_to_stepfunction_status_slack_lambda" {
   policy = data.aws_iam_policy_document.logs_for_lambda.json
   role   = aws_iam_role.lambda_stepfunction_status_slack_exec.id
 }
+
+resource "aws_cloudwatch_event_rule" "deploy_events_rule" {
+
+  name = "stepfunction-${data.aws_caller_identity.current.account_id}-deploy-notifications-rule"
+  event_pattern =<<EOF
+    {
+  "source": [
+    "aws.states"
+  ],
+  "detail-type": [
+    "Step Functions Execution Status Change"
+  ],
+  "resources": [
+    aws_lambda_function.stepfunction_status_slack.arn
+  ]
+}
+EOF
+}
+
+resource "aws_cloudwatch_event_target" "lambda_stepfunctions_notifications" {
+  arn = aws_lambda_function.stepfunction_status_slack.arn
+  rule = aws_cloudwatch_event_rule.deploy_events_rule.name
+
+  input_path = "$.detail"
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_stepfunction_notifications" {
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.stepfunction_status_slack.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.deploy_events_rule.arn
+}

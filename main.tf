@@ -40,7 +40,6 @@ resource "aws_iam_role_policy" "logs_to_stepfunction_status_slack_lambda" {
 }
 
 resource "aws_cloudwatch_event_rule" "deploy_events_rule" {
-
   name = "stepfunction-${data.aws_caller_identity.current.account_id}-deploy-notifications-rule"
   event_pattern =<<EOF
     {
@@ -51,7 +50,7 @@ resource "aws_cloudwatch_event_rule" "deploy_events_rule" {
     "Step Functions Execution Status Change"
   ],
   "resources": [
-    aws_lambda_function.stepfunction_status_slack.arn
+    "aws_lambda_function.stepfunction_status_slack.arn"
   ]
 }
 EOF

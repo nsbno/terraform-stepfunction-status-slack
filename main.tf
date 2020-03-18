@@ -50,7 +50,7 @@ resource "aws_cloudwatch_event_rule" "deploy_events_rule" {
     "Step Functions Execution Status Change"
   ],
   "resources": [
-    "aws_lambda_function.stepfunction_status_slack.arn"
+    "arn:aws:states:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:stateMachine:${var.name_prefix}-state-machine"
   ]
 }
 EOF

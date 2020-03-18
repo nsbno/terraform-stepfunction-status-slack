@@ -48,9 +48,6 @@ resource "aws_cloudwatch_event_rule" "deploy_events_rule" {
   ],
   "detail-type": [
     "Step Functions Execution Status Change"
-  ],
-  "resources": [
-    "arn:aws:states:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:stateMachine:${var.name_prefix}-state-machine"
   ]
 }
 EOF
@@ -59,8 +56,6 @@ EOF
 resource "aws_cloudwatch_event_target" "lambda_stepfunctions_notifications" {
   arn = aws_lambda_function.stepfunction_status_slack.arn
   rule = aws_cloudwatch_event_rule.deploy_events_rule.name
-
-  input_path = "$.detail"
 }
 
 resource "aws_lambda_permission" "allow_cloudwatch_stepfunction_notifications" {

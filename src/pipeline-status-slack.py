@@ -3,6 +3,7 @@ import logging
 import json
 import urllib
 import boto3
+from datetime import datetime
 from urllib import request
 
 logger = logging.getLogger()
@@ -26,7 +27,9 @@ def lambda_handler(event, context):
     executionname = executionarn.split(":")[7]
     
     message = []
-    message.append("Time: " + event['time'])
+    timestamp = event['time'].split(".")[0]
+    timestamp = datetime.strptime(timestamp[:-1], '%Y-%m-%dT%H:%M:%S')
+    message.append("Time: " + str(timestamp))
     message.append("Executionname: " + executionname)
     message.append("Status: No issues")
 
@@ -40,10 +43,11 @@ def lambda_handler(event, context):
                 if ("ExecutionFailed" in eventer["type"]):
                     cause = str(eventer["executionFailedEventDetails"]["cause"])
                     aktivitity = cause.split("'")[1]
-                    message[2]= ("Failed: " + aktivitity + "\n" + " Error: " + cause)
+																					 
         except Exception:
             aktivitity = 'Unknown'
             cause = 'Unknown'
+        message[2]= ("Failed: " + aktivitity + "\n" + " Error: " + cause)
         
     slack_attachment = {
         "attachments": [

@@ -16,6 +16,11 @@ data "aws_iam_policy_document" "logs_for_lambda" {
     resources = ["arn:aws:logs:${local.current_region}:${local.current_account_id}:*"]
   }
   statement {
+    effect    = "Allow"
+    actions   = ["states:GetExecutionHistory"]
+    resources = ["*"]
+  }
+  statement {
     effect = "Allow"
     actions = [
       "logs:CreateLogStream",

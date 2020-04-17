@@ -48,7 +48,7 @@ def lambda_handler(event, context):
             logger.exception('Something went wrong when parsing execution details')
             cause = 'Unknown'
             error_code = 'Unknown'
-        message[2]= ("Status: Failed\nError: {error_code}\n" + cause)
+        message[2]= (f"Status: Failed\nError: {error_code}\n" + cause)
 
     slack_attachment = {
         "attachments": [

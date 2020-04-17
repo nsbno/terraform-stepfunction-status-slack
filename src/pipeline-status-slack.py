@@ -29,8 +29,8 @@ def lambda_handler(event, context):
     message = []
     timestamp = event['time'].split(".")[0]
     timestamp = datetime.strptime(timestamp[:-1], '%Y-%m-%dT%H:%M:%S')
+    message.append("Execution: " + executionname)
     message.append("Time: " + str(timestamp))
-    message.append("Executionname: " + executionname)
     message.append("Status: No issues")
 
     if (color == "danger"):
@@ -41,20 +41,21 @@ def lambda_handler(event, context):
         try:
             for eventer in output["events"]:
                 if ("ExecutionFailed" in eventer["type"]):
-                    cause = str(eventer["executionFailedEventDetails"]["cause"])
-                    aktivitity = cause.split("'")[1]
-																					 
+                    cause = "```" + str(eventer["executionFailedEventDetails"]["cause"]) + "```"
+                    error_code = str(eventer["executionFailedEventDetails"]["error"])
+
         except Exception:
-            aktivitity = 'Unknown'
+            logger.exception('Something went wrong when parsing execution details')
             cause = 'Unknown'
-        message[2]= ("Failed: " + aktivitity + "\n" + " Error: " + cause)
-        
+            error_code = 'Unknown'
+        message[2]= ("Status: Failed\nError: {error_code}\n" + cause)
+
     slack_attachment = {
         "attachments": [
             {
                 "title": pipelinename + "-" + event['detail']['status'],
                 "fallback": "fallback",
-                "text": message[0] + "\n" + message[1] + "\n" + message[2],
+                "text": "\n".join(message),
                 "color": color,
                 "mrkdwn_in": [
                     "text"

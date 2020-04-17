@@ -31,9 +31,9 @@ def lambda_handler(event, context):
     timestamp = datetime.strptime(timestamp[:-1], '%Y-%m-%dT%H:%M:%S')
     message.append("*Execution:* " + executionname)
     message.append("*Time:* " + str(timestamp))
-    if event['detail']['status'] == "RUNNING":
+    if event['detail']['status'] == "RUNNING":
         message.append("*Status:* Started")
-    elif event['detail']['status'] == "SUCCEEDED":
+    elif event['detail']['status'] == "SUCCEEDED":
         message.append("*Status:* Successfully finished")
 
     if (color == "danger"):

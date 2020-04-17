@@ -25,13 +25,16 @@ def lambda_handler(event, context):
     pipelinename = pipelinename.split(":")[6]
     executionarn = event['detail']['executionArn']
     executionname = executionarn.split(":")[7]
-    
+
     message = []
     timestamp = event['time'].split(".")[0]
     timestamp = datetime.strptime(timestamp[:-1], '%Y-%m-%dT%H:%M:%S')
-    message.append("Execution: " + executionname)
-    message.append("Time: " + str(timestamp))
-    message.append("Status: No issues")
+    message.append("*Execution:* " + executionname)
+    message.append("*Time:* " + str(timestamp))
+    if event['detail']['status'] == "RUNNING":
+        message.append("*Status:* Started")
+    elif event['detail']['status'] == "SUCCEEDED":
+        message.append("*Status:* Successfully finished")
 
     if (color == "danger"):
         client = boto3.client("stepfunctions")
@@ -47,13 +50,13 @@ def lambda_handler(event, context):
         except Exception:
             logger.exception('Something went wrong when parsing execution details')
             cause = 'Unknown'
-            error_code = 'Unknown'
-        message[2]= (f"Status: Failed\nError: {error_code}\n" + cause)
+            error_code = 'Unknown error'
+        message.append(f"*Status:* Failed\n*Error:* {error_code}\n" + cause)
 
     slack_attachment = {
         "attachments": [
             {
-                "title": pipelinename + "-" + event['detail']['status'],
+                "title": pipelinename,
                 "fallback": "fallback",
                 "text": "\n".join(message),
                 "color": color,

@@ -44,8 +44,8 @@ def lambda_handler(event, context):
         try:
             for eventer in output["events"]:
                 if ("ExecutionFailed" in eventer["type"]):
-                    cause = "```" + str(eventer["executionFailedEventDetails"]["cause"]) + "```"
-                    error_code = str(eventer["executionFailedEventDetails"]["error"])
+                    cause = "```" + str(eventer["executionFailedEventDetails"].get("cause", "Unknown")) + "```"
+                    error_code = str(eventer["executionFailedEventDetails"].get("error", "Unknown error"))
 
         except Exception:
             logger.exception('Something went wrong when parsing execution details')

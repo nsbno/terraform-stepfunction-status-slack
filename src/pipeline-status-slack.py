@@ -25,13 +25,16 @@ def lambda_handler(event, context):
     pipelinename = pipelinename.split(":")[6]
     executionarn = event['detail']['executionArn']
     executionname = executionarn.split(":")[7]
-    
+
     message = []
     timestamp = event['time'].split(".")[0]
     timestamp = datetime.strptime(timestamp[:-1], '%Y-%m-%dT%H:%M:%S')
-    message.append("Time: " + str(timestamp))
-    message.append("Executionname: " + executionname)
-    message.append("Status: No issues")
+    message.append("*Execution:* " + executionname)
+    message.append("*Time:* " + str(timestamp))
+    if event['detail']['status'] == "RUNNING":
+        message.append("*Status:* Started")
+    elif event['detail']['status'] == "SUCCEEDED":
+        message.append("*Status:* Successfully finished")
 
     if (color == "danger"):
         client = boto3.client("stepfunctions")
@@ -41,20 +44,21 @@ def lambda_handler(event, context):
         try:
             for eventer in output["events"]:
                 if ("ExecutionFailed" in eventer["type"]):
-                    cause = str(eventer["executionFailedEventDetails"]["cause"])
-                    aktivitity = cause.split("'")[1]
-																					 
+                    cause = "```" + str(eventer["executionFailedEventDetails"].get("cause", "Unknown")) + "```"
+                    error_code = str(eventer["executionFailedEventDetails"].get("error", "Unknown error"))
+
         except Exception:
-            aktivitity = 'Unknown'
+            logger.exception('Something went wrong when parsing execution details')
             cause = 'Unknown'
-        message[2]= ("Failed: " + aktivitity + "\n" + " Error: " + cause)
-        
+            error_code = 'Unknown error'
+        message.append(f"*Status:* Failed\n*Error:* {error_code}\n" + cause)
+
     slack_attachment = {
         "attachments": [
             {
-                "title": pipelinename + "-" + event['detail']['status'],
+                "title": pipelinename,
                 "fallback": "fallback",
-                "text": message[0] + "\n" + message[1] + "\n" + message[2],
+                "text": "\n".join(message),
                 "color": color,
                 "mrkdwn_in": [
                     "text"

@@ -19,10 +19,11 @@ resource "aws_lambda_function" "stepfunction_status_slack" {
   runtime          = "python3.7"
   filename         = data.archive_file.lambda_stepfunction_status_slack_src.output_path
   source_code_hash = filebase64sha256(data.archive_file.lambda_stepfunction_status_slack_src.output_path)
+  timeout          = var.lambda_timeout
   tags             = var.tags
   environment {
     variables = {
-      slackwebhook = var.slackwebhook
+      slackwebhook   = var.slackwebhook
       statestonotify = var.statestonotify
     }
   }

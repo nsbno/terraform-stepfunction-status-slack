@@ -22,6 +22,7 @@ def get_name_of_last_entered_state(event, events):
 
 
 def get_failed_message(execution_arn, client=None):
+    """Returns a Markdown-formatted string describing what made the execution fail"""
     if client is None:
         client = boto3.client("stepfunctions")
     response = client.get_execution_history(
@@ -52,40 +53,45 @@ def lambda_handler(event, context):
     slack_webhook_url = os.environ["slackwebhook"]
     state_to_notify = os.environ["statestonotify"]
 
-    color = (
-        "danger"
-        if event["detail"]["status"] in ["FAILED", "ABORTED", "TIMED_OUT"]
-        else "good"
-    )
+    status = event["detail"]["status"]
 
-    # Send message to slack
-    pipelinename = event["detail"]["stateMachineArn"]
-    pipelinename = pipelinename.split(":")[6]
-    executionarn = event["detail"]["executionArn"]
-    executionname = executionarn.split(":")[7]
-    execution_url = f"https://console.aws.amazon.com/states/home?region={region}#/executions/details/{executionarn}"
+    state_machine_arn = event["detail"]["stateMachineArn"]
+    state_machine_name = state_machine_arn.split(":")[6]
+    execution_arn = event["detail"]["executionArn"]
+    execution_name = execution_arn.split(":")[7]
+    execution_url = f"https://console.aws.amazon.com/states/home?region={region}#/executions/details/{execution_arn}"
 
-    message = []
     timestamp = event["time"].split(".")[0]
     timestamp = datetime.strptime(timestamp[:-1], "%Y-%m-%dT%H:%M:%S")
-    message.append(f"*Execution:* <{execution_url}|{executionname}>")
-    message.append("*Time:* " + str(timestamp))
-    if event["detail"]["status"] == "RUNNING":
-        message.append("*Status:* Started")
-    elif event["detail"]["status"] == "SUCCEEDED":
-        message.append("*Status:* Successfully finished")
+    slack_message = [
+        f"*Execution:* <{execution_url}|{execution_name}>",
+        f"*Time:* {timestamp}"
+    ]
 
-    if color == "danger":
-        failed_message = get_failed_message(executionarn)
-        message.append(failed_message)
+    if status == 'RUNNING':
+        slack_color = 'good'
+        slack_message.append("*Status:* Started")
+    elif status == 'SUCCEEDED':
+        slack_color = 'good'
+        slack_message.append("*Status:* Successfully finished")
+    elif status == "FAILED":
+        slack_color = 'danger'
+        failed_message = get_failed_message(execution_arn)
+        slack_message.append(failed_message)
+    elif status == "ABORTED":
+        slack_color = 'danger'
+        slack_message.append('*Status:* Execution was manually aborted')
+    elif status == "TIMED_OUT":
+        slack_color = 'danger'
+        slack_message.append('*Status:* Execution timed out')
 
     slack_attachment = {
         "attachments": [
             {
-                "title": pipelinename,
+                "title": state_machine_name,
                 "fallback": "fallback",
-                "text": "\n".join(message),
-                "color": color,
+                "text": "\n".join(slack_message),
+                "color": slack_color,
                 "mrkdwn_in": ["text"],
             }
         ]
@@ -94,7 +100,7 @@ def lambda_handler(event, context):
     try:
         json_data = json.dumps(slack_attachment)
         logger.info("\nOutput " + str(json_data))
-        if color == "danger" or state_to_notify == "all":
+        if slack_color == "danger" or state_to_notify == "all":
             slack_request = urllib.request.Request(
                 slack_webhook_url,
                 data=json_data.encode("ascii"),

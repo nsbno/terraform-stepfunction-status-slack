@@ -84,6 +84,9 @@ def lambda_handler(event, context):
     elif status == "TIMED_OUT":
         slack_color = 'danger'
         slack_message.append('*Status:* Execution timed out')
+    else:
+        slack_color = 'danger'
+        slack_message.append(f'*Status:* Unknown execution status `{status}`')
 
     slack_attachment = {
         "attachments": [

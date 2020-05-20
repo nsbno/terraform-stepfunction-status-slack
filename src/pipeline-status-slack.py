@@ -10,15 +10,37 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def get_name_of_last_entered_state(event, events):
-    """Backtracks to the last entered state of the execution and returns the name of it"""
-    if event["type"].endswith("StateEntered"):
-        return event["stateEnteredEventDetails"]["name"]
-    previous_id = event["previousEventId"]
-    previous_event = next((e for e in events if e["id"] == previous_id), None)
-    if previous_event is None:
-        return None
-    return get_name_of_last_entered_state(previous_event, events)
+def find_event_by_backtracking(initial_event, events, condition_fn, break_fn):
+    """Backtracks to the first event that matches a specific condition and returns that event"""
+    event = initial_event
+    visited_events = []
+    for _ in range(len(events)):
+        if condition_fn(event):
+            return event
+        if break_fn(visited_events):
+            event = None
+            break
+        visited_events.append(event)
+        event = next(
+            (e for e in events if e["id"] == event["previousEventId"]), None
+        )
+        if event is None:
+            break
+    return event
+
+
+def get_fail_events(events):
+    """Return the events that failed during an execution"""
+    fail_events = []
+    for e in events:
+        if e["type"].endswith("Failed"):
+            enter_event = find_event_by_backtracking(e, events, lambda e2: e2["type"].endswith("StateEntered") and e2["stateEnteredEventDetails"]["name"] != "Raise Errors", lambda visited_events: not any(
+                visited_event["type"].endswith("StateEntered") for visited_event in visited_events))
+            if enter_event:
+                state_name = enter_event["stateEnteredEventDetails"]["name"]
+                fail_events.append({**e, "name": state_name, "failedEventDetails": e.get(next((key for key in e if key.endswith(
+                    "FailedEventDetails") and all(required_key in e[key] for required_key in ["error", "cause"])), None), None)})
+    return fail_events
 
 
 def get_failed_message(execution_arn, client=None):
@@ -29,21 +51,29 @@ def get_failed_message(execution_arn, client=None):
         executionArn=execution_arn, maxResults=500, reverseOrder=True
     )
     events = response["events"]
-    failed_event = next(
-        (event for event in events if event["type"] == "ExecutionFailed"), None
-    )
-    state_name = "Unknown state"
-    cause = "Unknown"
-    error_code = "Unknown error"
-    if failed_event:
-        state_name = get_name_of_last_entered_state(
-            failed_event, events) or state_name
-        cause = failed_event["executionFailedEventDetails"]["cause"]
-        error_code = failed_event["executionFailedEventDetails"]["error"]
+    fail_events = get_fail_events(events)
+
+    if len(fail_events):
+        if len(fail_events) == 1:
+            return (
+                f"*Status:* Failed in state `{fail_events[0]['name']}\n"
+                f"*Error:* `{fail_events[0]['failedEventDetails']['error']}`\n"
+                f"```{fail_events[0]['failedEventDetails']['cause']}```"
+            )
+        else:
+            state_names = ','.join([f"`{e['name']}`" for e in fail_events])
+            errors = "*Error:*" + \
+                "\n".join(
+                    [f"`{e['name']}` failed due to `{e['failedEventDetails']['error']}`:\n```{e['failedEventDetails']['cause']}```" for e in fail_events])
+            return (
+                f"*Status:* Failed in states {state_names}\n"
+                f"*Error:*\n"
+                f"{errors}"
+            )
     return (
-        f"*Status:* Failed in state `{state_name}`\n"
-        f"*Error:* `{error_code}`\n"
-        f"```{cause}```"
+        f"*Status:* Failed in state `Unknown state`\n"
+        f"*Error:* `Unknown error`\n"
+        f"```Unknown```"
     )
 
 

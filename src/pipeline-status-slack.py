@@ -33,7 +33,7 @@ def get_fail_events(events, excluded_states=[]):
     """Return the events that failed during an execution"""
     fail_events = []
     for e in events:
-        if e["type"].endswith("Failed"):
+        if e["type"].endswith("Failed") and e["type"] != "ExecutionFailed":
             enter_event = find_event_by_backtracking(e, events, lambda current_event: current_event["type"].endswith("StateEntered") and current_event["stateEnteredEventDetails"]["name"] not in excluded_states, break_fn=lambda visited_events: any(
                 visited_event["type"].endswith("StateEntered") for visited_event in visited_events))
             if enter_event:

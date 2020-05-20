@@ -10,14 +10,14 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def find_event_by_backtracking(initial_event, events, condition_fn, break_fn):
+def find_event_by_backtracking(initial_event, events, condition_fn, break_fn=None):
     """Backtracks to the first event that matches a specific condition and returns that event"""
     event = initial_event
     visited_events = []
     for _ in range(len(events)):
         if condition_fn(event):
             return event
-        if break_fn(visited_events):
+        if break_fn and break_fn(visited_events):
             event = None
             break
         visited_events.append(event)
@@ -29,12 +29,12 @@ def find_event_by_backtracking(initial_event, events, condition_fn, break_fn):
     return event
 
 
-def get_fail_events(events):
+def get_fail_events(events, excluded_states=[]):
     """Return the events that failed during an execution"""
     fail_events = []
     for e in events:
         if e["type"].endswith("Failed"):
-            enter_event = find_event_by_backtracking(e, events, lambda e2: e2["type"].endswith("StateEntered") and e2["stateEnteredEventDetails"]["name"] != "Raise Errors", lambda visited_events: any(
+            enter_event = find_event_by_backtracking(e, events, lambda current_event: current_event["type"].endswith("StateEntered") and current_event["stateEnteredEventDetails"]["name"] not in excluded_states, break_fn=lambda visited_events: any(
                 visited_event["type"].endswith("StateEntered") for visited_event in visited_events))
             if enter_event:
                 state_name = enter_event["stateEnteredEventDetails"]["name"]
@@ -51,7 +51,7 @@ def get_failed_message(execution_arn, client=None):
         executionArn=execution_arn, maxResults=500, reverseOrder=True
     )
     events = response["events"]
-    fail_events = get_fail_events(events)
+    fail_events = get_fail_events(events, excluded_states=["Raise Errors"])
 
     if len(fail_events):
         if len(fail_events) == 1:

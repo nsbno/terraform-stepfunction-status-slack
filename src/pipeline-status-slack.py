@@ -34,7 +34,7 @@ def get_fail_events(events):
     fail_events = []
     for e in events:
         if e["type"].endswith("Failed"):
-            enter_event = find_event_by_backtracking(e, events, lambda e2: e2["type"].endswith("StateEntered") and e2["stateEnteredEventDetails"]["name"] != "Raise Errors", lambda visited_events: not any(
+            enter_event = find_event_by_backtracking(e, events, lambda e2: e2["type"].endswith("StateEntered") and e2["stateEnteredEventDetails"]["name"] != "Raise Errors", lambda visited_events: any(
                 visited_event["type"].endswith("StateEntered") for visited_event in visited_events))
             if enter_event:
                 state_name = enter_event["stateEnteredEventDetails"]["name"]

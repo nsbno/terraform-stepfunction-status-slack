@@ -56,18 +56,17 @@ def get_failed_message(execution_arn, client=None):
     if len(fail_events):
         if len(fail_events) == 1:
             return (
-                f"*Status:* Failed in state `{fail_events[0]['name']}\n"
+                f"*Status:* Failed in state `{fail_events[0]['name']}`\n"
                 f"*Error:* `{fail_events[0]['failedEventDetails']['error']}`\n"
                 f"```{fail_events[0]['failedEventDetails']['cause']}```"
             )
         else:
-            state_names = ','.join([f"`{e['name']}`" for e in fail_events])
-            errors = "*Error:*" + \
-                "\n".join(
-                    [f"`{e['name']}` failed due to `{e['failedEventDetails']['error']}`:\n```{e['failedEventDetails']['cause']}```" for e in fail_events])
+            state_names = ', '.join([f"`{e['name']}`" for e in fail_events])
+            errors = "\n".join(
+                [f"`{e['name']}` failed due to `{e['failedEventDetails']['error']}`:\n```{e['failedEventDetails']['cause']}```" for e in fail_events])
             return (
                 f"*Status:* Failed in states {state_names}\n"
-                f"*Error:*\n"
+                f"*Errors:*\n"
                 f"{errors}"
             )
     return (

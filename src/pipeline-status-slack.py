@@ -92,10 +92,17 @@ def lambda_handler(event, context):
 
     timestamp = event["time"].split(".")[0]
     timestamp = datetime.strptime(timestamp[:-1], "%Y-%m-%dT%H:%M:%S")
+    execution_input = json.loads(event["detail"]["input"])
+    toggling_cost_saving_mode = execution_input.get(
+        "toggling_cost_saving_mode", False)
     slack_message = [
         f"*Execution:* <{execution_url}|{execution_name}>",
         f"*Time:* {timestamp}"
     ]
+
+    if toggling_cost_saving_mode:
+        slack_message.append(
+            f"*Type:* Automatic deployment (toggling cost-saving mode)")
 
     if status == 'RUNNING':
         slack_color = 'good'

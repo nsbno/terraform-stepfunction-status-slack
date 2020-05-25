@@ -33,13 +33,18 @@ def get_fail_events(events, excluded_states=[]):
     """Return the events that failed during an execution"""
     fail_events = []
     for e in events:
-        if e["type"].endswith("Failed") and e["type"] != "ExecutionFailed":
+        # Different state types use different names for storing details about the failed event
+        # `taskFailedEventDetails`, `activityFailedEventDetails`, etc.
+        failed_event_details = e.get(next((key for key in e if key.endswith(
+            "FailedEventDetails") and all(required_key in e[key] for required_key in ["error", "cause"])), None), None)
+        if failed_event_details and e["type"].endswith("Failed") and e["type"] != "ExecutionFailed":
             enter_event = find_event_by_backtracking(e, events, lambda current_event: current_event["type"].endswith("StateEntered") and current_event["stateEnteredEventDetails"]["name"] not in excluded_states, break_fn=lambda visited_events: any(
                 visited_event["type"].endswith("StateEntered") for visited_event in visited_events))
             if enter_event:
                 state_name = enter_event["stateEnteredEventDetails"]["name"]
-                fail_events.append({**e, "name": state_name, "failedEventDetails": e.get(next((key for key in e if key.endswith(
-                    "FailedEventDetails") and all(required_key in e[key] for required_key in ["error", "cause"])), None), None)})
+                # Save failed_event_details to `failedEventDetails` to make it easier and more consistent to reference
+                fail_events.append(
+                    {**e, "name": state_name, "failedEventDetails": failed_event_details})
     return fail_events
 
 
@@ -52,6 +57,7 @@ def get_failed_message(execution_arn, client=None):
     )
     events = response["events"]
     fail_events = get_fail_events(events, excluded_states=["Raise Errors"])
+    logger.info("Found %s failed states", len(fail_events))
 
     if len(fail_events):
         if len(fail_events) == 1:

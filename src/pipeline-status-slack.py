@@ -10,15 +10,42 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def get_name_of_last_entered_state(event, events):
-    """Backtracks to the last entered state of the execution and returns the name of it"""
-    if event["type"].endswith("StateEntered"):
-        return event["stateEnteredEventDetails"]["name"]
-    previous_id = event["previousEventId"]
-    previous_event = next((e for e in events if e["id"] == previous_id), None)
-    if previous_event is None:
-        return None
-    return get_name_of_last_entered_state(previous_event, events)
+def find_event_by_backtracking(initial_event, events, condition_fn, break_fn=None):
+    """Backtracks to the first event that matches a specific condition and returns that event"""
+    event = initial_event
+    visited_events = []
+    for _ in range(len(events)):
+        if condition_fn(event):
+            return event
+        if break_fn and break_fn(visited_events):
+            event = None
+            break
+        visited_events.append(event)
+        event = next(
+            (e for e in events if e["id"] == event["previousEventId"]), None
+        )
+        if event is None:
+            break
+    return event
+
+
+def get_fail_events(events, excluded_states=[]):
+    """Return the events that failed during an execution"""
+    fail_events = []
+    for e in events:
+        # Different state types use different names for storing details about the failed event
+        # `taskFailedEventDetails`, `activityFailedEventDetails`, etc.
+        failed_event_details = e.get(next((key for key in e if key.endswith(
+            "FailedEventDetails") and all(required_key in e[key] for required_key in ["error", "cause"])), None), None)
+        if failed_event_details and e["type"].endswith("Failed") and e["type"] != "ExecutionFailed":
+            enter_event = find_event_by_backtracking(e, events, lambda current_event: current_event["type"].endswith("StateEntered") and current_event["stateEnteredEventDetails"]["name"] not in excluded_states, break_fn=lambda visited_events: any(
+                visited_event["type"].endswith("StateEntered") for visited_event in visited_events))
+            if enter_event:
+                state_name = enter_event["stateEnteredEventDetails"]["name"]
+                # Save failed_event_details to `failedEventDetails` to make it easier and more consistent to reference
+                fail_events.append(
+                    {**e, "name": state_name, "failedEventDetails": failed_event_details})
+    return fail_events
 
 
 def get_failed_message(execution_arn, client=None):
@@ -29,21 +56,29 @@ def get_failed_message(execution_arn, client=None):
         executionArn=execution_arn, maxResults=500, reverseOrder=True
     )
     events = response["events"]
-    failed_event = next(
-        (event for event in events if event["type"] == "ExecutionFailed"), None
-    )
-    state_name = "Unknown state"
-    cause = "Unknown"
-    error_code = "Unknown error"
-    if failed_event:
-        state_name = get_name_of_last_entered_state(
-            failed_event, events) or state_name
-        cause = failed_event["executionFailedEventDetails"]["cause"]
-        error_code = failed_event["executionFailedEventDetails"]["error"]
+    fail_events = get_fail_events(events, excluded_states=["Raise Errors"])
+    logger.info("Found %s failed states", len(fail_events))
+
+    if len(fail_events):
+        if len(fail_events) == 1:
+            return (
+                f"*Status:* Failed in state `{fail_events[0]['name']}`\n"
+                f"*Error:* `{fail_events[0]['failedEventDetails']['error']}`\n"
+                f"```{fail_events[0]['failedEventDetails']['cause']}```"
+            )
+        else:
+            state_names = ', '.join([f"`{e['name']}`" for e in fail_events])
+            errors = "\n".join(
+                [f"`{e['name']}` failed due to `{e['failedEventDetails']['error']}`:\n```{e['failedEventDetails']['cause']}```" for e in fail_events])
+            return (
+                f"*Status:* Failed in states {state_names}\n"
+                f"*Errors:*\n"
+                f"{errors}"
+            )
     return (
-        f"*Status:* Failed in state `{state_name}`\n"
-        f"*Error:* `{error_code}`\n"
-        f"```{cause}```"
+        f"*Status:* Failed in state `Unknown state`\n"
+        f"*Error:* `Unknown error`\n"
+        f"```Unknown```"
     )
 
 
@@ -63,10 +98,17 @@ def lambda_handler(event, context):
 
     timestamp = event["time"].split(".")[0]
     timestamp = datetime.strptime(timestamp[:-1], "%Y-%m-%dT%H:%M:%S")
+    execution_input = json.loads(event["detail"]["input"])
+    toggling_cost_saving_mode = execution_input.get(
+        "toggling_cost_saving_mode", False)
     slack_message = [
         f"*Execution:* <{execution_url}|{execution_name}>",
         f"*Time:* {timestamp}"
     ]
+
+    if toggling_cost_saving_mode:
+        slack_message.append(
+            f"*Type:* Automatic deployment (toggling cost-saving mode)")
 
     if status == 'RUNNING':
         slack_color = 'good'

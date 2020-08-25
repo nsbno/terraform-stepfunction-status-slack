@@ -35,9 +35,9 @@ def get_fail_events(events, excluded_states=[]):
     for e in events:
         # Different state types use different names for storing details about the failed event
         # `taskFailedEventDetails`, `activityFailedEventDetails`, etc.
-        failed_event_details = e.get(next((key for key in e if key.endswith(
-            "FailedEventDetails") and all(required_key in e[key] for required_key in ["error", "cause"])), None), None)
-        if failed_event_details and e["type"].endswith("Failed") and e["type"] != "ExecutionFailed":
+        failed_event_details = e.get(next((key for key in e if (key.endswith(
+            "FailedEventDetails") or key.endswith("TimedOutEventDetails")) and all(required_key in e[key] for required_key in ["error", "cause"])), None), None)
+        if failed_event_details and (e["type"].endswith("Failed") or e["type"].endswith("TimedOut")) and e["type"] != "ExecutionFailed":
             enter_event = find_event_by_backtracking(e, events, lambda current_event: current_event["type"].endswith("StateEntered") and current_event["stateEnteredEventDetails"]["name"] not in excluded_states, break_fn=lambda visited_events: any(
                 visited_event["type"].endswith("StateEntered") for visited_event in visited_events))
             if enter_event:
@@ -64,12 +64,12 @@ def get_failed_message(execution_arn, client=None):
             return (
                 f"*Status:* Failed in state `{fail_events[0]['name']}`\n"
                 f"*Error:* `{fail_events[0]['failedEventDetails']['error']}`\n"
-                f"```{fail_events[0]['failedEventDetails']['cause']}```"
+                f"```{fail_events[0]['failedEventDetails'].get('cause', '')}```"
             )
         else:
             state_names = ', '.join([f"`{e['name']}`" for e in fail_events])
             errors = "\n".join(
-                [f"`{e['name']}` failed due to `{e['failedEventDetails']['error']}`:\n```{e['failedEventDetails']['cause']}```" for e in fail_events])
+                [f"`{e['name']}` failed due to `{e['failedEventDetails']['error']}`:\n```{e['failedEventDetails'].get('cause', '')}```" for e in fail_events])
             return (
                 f"*Status:* Failed in states {state_names}\n"
                 f"*Errors:*\n"

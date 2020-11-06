@@ -119,6 +119,7 @@ def lambda_handler(event, context):
     if status == 'RUNNING':
         slack_color = 'good'
         slack_message.append("*Status:* Started")
+        slack_message.append(f"**Execution Input**:\n```{json.dumps(execution_input, sort_keys=True)}```")
     elif status == 'SUCCEEDED':
         slack_color = 'good'
         slack_message.append("*Status:* Successfully finished")

@@ -108,6 +108,9 @@ def lambda_handler(event, context):
         f"*Execution:* <{execution_url}|{execution_name}>",
         f"*Time:* {timestamp}"
     ]
+    footer = ""
+    if all(key in execution_input for key in ["git_user", "git_repo", "git_branch"]):
+        footer = f"{execution_input['git_user']} @ {execution_input['git_repo']} ({execution_input['git_branch']})"
 
     if toggling_cost_saving_mode:
         slack_message.append(
@@ -141,6 +144,7 @@ def lambda_handler(event, context):
                 "text": "\n".join(slack_message),
                 "color": slack_color,
                 "mrkdwn_in": ["text"],
+                "footer": footer,
             }
         ]
     }

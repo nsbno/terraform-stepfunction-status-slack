@@ -105,8 +105,7 @@ def lambda_handler(event, context):
     toggling_cost_saving_mode = execution_input.get(
         "toggling_cost_saving_mode", False)
     slack_message = [
-        f"*Execution:* <{execution_url}|{execution_name}>",
-        f"*Time:* {timestamp}"
+        f"*Execution:* <{execution_url}|{execution_name}>"
     ]
     footer = ""
     if all(key in execution_input for key in ["git_user", "git_repo", "git_branch"]):
@@ -146,6 +145,7 @@ def lambda_handler(event, context):
                 "color": slack_color,
                 "mrkdwn_in": ["text"],
                 "footer": footer,
+                "ts": int(timestamp.timestamp())
             }
         ]
     }

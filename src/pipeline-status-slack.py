@@ -3,6 +3,7 @@ import logging
 import json
 import urllib
 import boto3
+import uuid
 from datetime import datetime
 from urllib import request
 
@@ -107,9 +108,16 @@ def lambda_handler(event, context):
     slack_message = [
         f"*Execution:* <{execution_url}|{execution_name}>"
     ]
+    manually_triggered = False
+    try:
+        manually_triggered = str(uuid.UUID(execution_name)) == execution_name
+    except ValueError:
+        pass
     footer = ""
-    if all(key in execution_input for key in ["git_user", "git_repo", "git_branch"]):
-        footer = f"{execution_input['git_user']} @ {execution_input['git_repo']} ({execution_input['git_branch']})"
+    if manually_triggered:
+        footer = "Triggered by AWS Console"
+    elif all(key in execution_input for key in ["git_user", "git_repo", "git_branch"]):
+        footer = f"Triggered by {execution_input['git_user']} @ {execution_input['git_repo']} ({execution_input['git_branch']})"
 
     if toggling_cost_saving_mode:
         slack_message.append(

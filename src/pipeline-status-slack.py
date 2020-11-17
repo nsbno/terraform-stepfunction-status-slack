@@ -3,6 +3,7 @@ import logging
 import json
 import urllib
 import boto3
+import uuid
 from datetime import datetime
 from urllib import request
 
@@ -105,9 +106,18 @@ def lambda_handler(event, context):
     toggling_cost_saving_mode = execution_input.get(
         "toggling_cost_saving_mode", False)
     slack_message = [
-        f"*Execution:* <{execution_url}|{execution_name}>",
-        f"*Time:* {timestamp}"
+        f"*Execution:* <{execution_url}|{execution_name}>"
     ]
+    manually_triggered = False
+    try:
+        manually_triggered = str(uuid.UUID(execution_name)) == execution_name
+    except ValueError:
+        pass
+    footer = ""
+    if manually_triggered:
+        footer = "Triggered by AWS Console"
+    elif all(key in execution_input for key in ["git_user", "git_repo", "git_branch"]):
+        footer = f"Triggered by {execution_input['git_user']} @ {execution_input['git_repo']} ({execution_input['git_branch']})"
 
     if toggling_cost_saving_mode:
         slack_message.append(
@@ -116,6 +126,7 @@ def lambda_handler(event, context):
     if status == 'RUNNING':
         slack_color = 'good'
         slack_message.append("*Status:* Started")
+        slack_message.append(f"*Input*:\n```{json.dumps(execution_input, sort_keys=True, indent=2)}```")
     elif status == 'SUCCEEDED':
         slack_color = 'good'
         slack_message.append("*Status:* Successfully finished")
@@ -141,6 +152,8 @@ def lambda_handler(event, context):
                 "text": "\n".join(slack_message),
                 "color": slack_color,
                 "mrkdwn_in": ["text"],
+                "footer": footer,
+                "ts": int(timestamp.timestamp())
             }
         ]
     }

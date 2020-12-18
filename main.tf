@@ -51,7 +51,7 @@ resource "aws_cloudwatch_event_rule" "deploy_events_rule" {
     "Step Functions Execution Status Change"
   ],
   "detail": {
-    "stateMachineArn": ${length(var.state_machine_arns) > 0 ? jsonencode(var.state_machine_arns) : jsonencode("*")}
+    "stateMachineArn": ${jsonencode(var.state_machine_arns)}
   }
 }
 EOF

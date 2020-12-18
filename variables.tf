@@ -13,7 +13,7 @@ variable "artifact_bucket_name" {
 
 variable "state_machine_arns" {
   description = "An optional list of ARNs of AWS Step Functions state machines to report updates on. Default behavior is to report updates for all state machines in the current region."
-  default     = []
+  default     = ["*"]
   type        = list(string)
 }
 

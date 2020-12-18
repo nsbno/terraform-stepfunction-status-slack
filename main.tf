@@ -54,7 +54,8 @@ resource "aws_cloudwatch_event_rule" "deploy_events_rule" {
     "stateMachineArn": ${
   length(var.state_machine_arns) > 0
   ? jsonencode(var.state_machine_arns)
-: jsonencode([{ exists = true }])}
+  # This pattern will match all state machine ARNs
+: jsonencode([{ prefix = "" }])}
   }
 }
 EOF

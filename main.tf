@@ -41,7 +41,7 @@ resource "aws_iam_role_policy" "logs_to_stepfunction_status_slack_lambda" {
 }
 
 resource "aws_cloudwatch_event_rule" "deploy_events_rule" {
-  name = "stepfunction-${data.aws_caller_identity.current.account_id}-deploy-notifications-rule"
+  name          = "stepfunction-${data.aws_caller_identity.current.account_id}-deploy-notifications-rule"
   event_pattern = <<EOF
 {
   "source": [
@@ -58,7 +58,7 @@ EOF
 }
 
 resource "aws_cloudwatch_event_target" "lambda_stepfunctions_notifications" {
-  arn = aws_lambda_function.stepfunction_status_slack.arn
+  arn  = aws_lambda_function.stepfunction_status_slack.arn
   rule = aws_cloudwatch_event_rule.deploy_events_rule.name
 }
 
@@ -68,3 +68,4 @@ resource "aws_lambda_permission" "allow_cloudwatch_stepfunction_notifications" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.deploy_events_rule.arn
 }
+

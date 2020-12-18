@@ -41,7 +41,7 @@ resource "aws_iam_role_policy" "logs_to_stepfunction_status_slack_lambda" {
 }
 
 resource "aws_cloudwatch_event_rule" "deploy_events_rule" {
-  name          = "stepfunction-${data.aws_caller_identity.current.account_id}-deploy-notifications-rule"
+  description   = "Triggers when an AWS Step Functions state machine execution starts, succeeds or fails"
   event_pattern = <<EOF
 {
   "source": [

@@ -43,6 +43,7 @@ resource "aws_iam_role_policy" "logs_to_stepfunction_status_slack_lambda" {
 resource "aws_cloudwatch_event_rule" "deploy_events_rule" {
   name        = "${var.name_prefix}-sfn-state-machine-update"
   description = "Triggers when an AWS Step Functions state machine execution starts, succeeds or fails"
+  tags        = var.tags
   event_pattern = <<EOF
 {
   "source": [

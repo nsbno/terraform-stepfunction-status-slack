@@ -116,8 +116,10 @@ def lambda_handler(event, context):
     footer = ""
     if manually_triggered:
         footer = "Triggered by AWS Console"
-    elif all(key in execution_input for key in ["git_user", "git_repo", "git_branch"]):
-        footer = f"Triggered by {execution_input['git_user']} @ {execution_input['git_repo']} ({execution_input['git_branch']})"
+    elif all(execution_input.get(key, None) for key in ["git_user", "git_repo", "git_branch"]):
+        footer = f"Triggered by {execution_input['git_user']} from repository {execution_input['git_repo']} [{execution_input['git_branch']}]"
+    elif all(execution_input.get(key, None) for key in ["git_repo", "git_branch"]):
+        footer = f"Triggered from repository {execution_input['git_repo']} [{execution_input['git_branch']}]"
 
     if toggling_cost_saving_mode:
         slack_message.append(

@@ -33,19 +33,69 @@ def find_event_by_backtracking(initial_event, events, condition_fn, break_fn=Non
 def get_fail_events(events, excluded_states=[]):
     """Return the events that failed during an execution"""
     fail_events = []
+    execution_failure_event = None
     for e in events:
         # Different state types use different names for storing details about the failed event
         # `taskFailedEventDetails`, `activityFailedEventDetails`, etc.
-        failed_event_details = e.get(next((key for key in e if (key.endswith(
-            "FailedEventDetails") or key.endswith("TimedOutEventDetails")) and all(required_key in e[key] for required_key in ["error"])), None), None)
-        if failed_event_details and (e["type"].endswith("Failed") or e["type"].endswith("TimedOut")) and e["type"] != "ExecutionFailed":
-            enter_event = find_event_by_backtracking(e, events, lambda current_event: current_event["type"].endswith("StateEntered") and current_event["stateEnteredEventDetails"]["name"] not in excluded_states, break_fn=lambda visited_events: any(
-                visited_event["type"].endswith("StateEntered") for visited_event in visited_events))
-            if enter_event:
-                state_name = enter_event["stateEnteredEventDetails"]["name"]
-                # Save failed_event_details to `failedEventDetails` to make it easier and more consistent to reference
-                fail_events.append(
-                    {**e, "name": state_name, "failedEventDetails": failed_event_details})
+        failed_event_details = e.get(
+            next(
+                (
+                    key
+                    for key in e
+                    if (
+                        key.endswith("FailedEventDetails")
+                        or key.endswith("TimedOutEventDetails")
+                    )
+                    and all(
+                        required_key in e[key] for required_key in ["error"]
+                    )
+                ),
+                None,
+            ),
+            None,
+        )
+        if failed_event_details and (
+            e["type"].endswith("Failed") or e["type"].endswith("TimedOut")
+        ):
+            if e["type"] == "ExecutionFailed":
+                execution_failure_event = {
+                    **e,
+                    "name": "Unknown state",
+                    "failedEventDetails": failed_event_details,
+                }
+            else:
+                enter_event = find_event_by_backtracking(
+                    e,
+                    events,
+                    lambda current_event: current_event["type"].endswith(
+                        "StateEntered"
+                    )
+                    and current_event["stateEnteredEventDetails"]["name"]
+                    not in excluded_states,
+                    break_fn=lambda visited_events: any(
+                        visited_event["type"].endswith("StateEntered")
+                        for visited_event in visited_events
+                    ),
+                )
+                if enter_event:
+                    state_name = enter_event["stateEnteredEventDetails"][
+                        "name"
+                    ]
+                    # Save failed_event_details to `failedEventDetails` to make it easier and more consistent to reference
+                    fail_events.append(
+                        {
+                            **e,
+                            "name": state_name,
+                            "failedEventDetails": failed_event_details,
+                        }
+                    )
+
+    # We only include the execution failure event if we haven't found any `TaskFailed` events.
+    # This can typically occur if an execution fails due to a task state referencing
+    # non-existing JSON keys in the state machine definition.
+    if len(fail_events) == 0 and execution_failure_event:
+        fail_events.append(execution_failure_event)
+
     return fail_events
 
 

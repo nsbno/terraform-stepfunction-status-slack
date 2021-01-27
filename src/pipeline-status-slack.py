@@ -158,6 +158,12 @@ def lambda_handler(event, context):
     timestamp = event["time"].split(".")[0]
     timestamp = datetime.strptime(timestamp[:-1], "%Y-%m-%dT%H:%M:%S")
     execution_input = json.loads(event["detail"]["input"])
+    additional_slack_webhook_urls = execution_input.get(
+        "slack_webhook_urls", []
+    )
+    slack_webhook_urls = list(
+        set([slack_webhook_url] + additional_slack_webhook_urls)
+    )
     toggling_cost_saving_mode = execution_input.get(
         "toggling_cost_saving_mode", False
     )
@@ -222,15 +228,19 @@ def lambda_handler(event, context):
         ]
     }
 
-    try:
-        json_data = json.dumps(slack_attachment)
-        logger.info("\nOutput " + str(json_data))
-        if slack_color == "danger" or state_to_notify == "all":
-            slack_request = urllib.request.Request(
-                slack_webhook_url,
-                data=json_data.encode("ascii"),
-                headers={"Content-Type": "application/json"},
-            )
-            slack_response = urllib.request.urlopen(slack_request)
-    except Exception as em:
-        logger.exception("EXCEPTION: " + str(em))
+    json_data = json.dumps(slack_attachment)
+    logger.info("\nOutput " + str(json_data))
+    if slack_color == "danger" or state_to_notify == "all":
+        for url in slack_webhook_urls:
+            try:
+                slack_request = urllib.request.Request(
+                    url,
+                    data=json_data.encode("ascii"),
+                    headers={"Content-Type": "application/json"},
+                )
+                slack_response = urllib.request.urlopen(slack_request)
+            except:
+                logger.exception(
+                    "Failed to post message to Slack webhook URL '%s' due to '%s'",
+                    url,
+                )

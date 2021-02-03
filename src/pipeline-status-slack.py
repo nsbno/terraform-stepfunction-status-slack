@@ -241,6 +241,6 @@ def lambda_handler(event, context):
                 slack_response = urllib.request.urlopen(slack_request)
             except:
                 logger.exception(
-                    "Failed to post message to Slack webhook URL '%s' due to '%s'",
+                    "Failed to post message to Slack webhook URL '%s'",
                     url,
                 )

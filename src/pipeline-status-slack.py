@@ -141,11 +141,43 @@ def get_failed_message(execution_arn, client=None):
     )
 
 
+def get_success_message(execution_arn, report_failed_events, client=None):
+    """Returns a Markdown-formatted string describing the execution's success"""
+    if client is None:
+        client = boto3.client("stepfunctions")
+
+    message = "*Status:* Successfully finished"
+    if report_failed_events:
+        client = boto3.client("stepfunctions")
+        response = client.get_execution_history(
+            executionArn=execution_arn, maxResults=500, reverseOrder=True
+        )
+        events = response["events"]
+        fail_events = get_fail_events(events, excluded_states=["Raise Errors"])
+        if len(fail_events):
+            message = f"*Status:* Successfully* finished (_* {len(fail_events)} error(s) were caught and handled_)"
+            state_names = ", ".join([f"`{e['name']}`" for e in fail_events])
+            errors = "\n".join(
+                [
+                    (
+                        f"`{e['name']}` failed due to `{e['failedEventDetails']['error']}`, but the error was caught:\n"
+                        f"{'```' + e['failedEventDetails']['cause'] + '```' if 'cause' in e['failedEventDetails'] else ''}"
+                    )
+                    for e in fail_events
+                ]
+            )
+            message += "\n" + errors
+    return message
+
+
 def lambda_handler(event, context):
     logger.info(event)
     region = os.environ["AWS_REGION"]
     slack_webhook_url = os.environ["slackwebhook"]
     state_to_notify = os.environ["statestonotify"]
+    report_failed_events_on_success = (
+        os.environ["REPORT_FAILED_EVENTS_ON_SUCCESS"] == "true"
+    )
 
     status = event["detail"]["status"]
 
@@ -199,7 +231,10 @@ def lambda_handler(event, context):
         )
     elif status == "SUCCEEDED":
         slack_color = "good"
-        slack_message.append("*Status:* Successfully finished")
+        success_message = get_success_message(
+            execution_arn, report_failed_events_on_success
+        )
+        slack_message.append(success_message)
     elif status == "FAILED":
         slack_color = "danger"
         failed_message = get_failed_message(execution_arn)

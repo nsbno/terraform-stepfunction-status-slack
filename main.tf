@@ -23,8 +23,9 @@ resource "aws_lambda_function" "stepfunction_status_slack" {
   tags             = var.tags
   environment {
     variables = {
-      slackwebhook   = var.slackwebhook
-      statestonotify = var.statestonotify
+      REPORT_FAILED_EVENTS_ON_SUCCESS = var.report_failed_events_on_success
+      slackwebhook                    = var.slackwebhook
+      statestonotify                  = var.statestonotify
     }
   }
 }
@@ -41,8 +42,8 @@ resource "aws_iam_role_policy" "logs_to_stepfunction_status_slack_lambda" {
 }
 
 resource "aws_cloudwatch_event_rule" "deploy_events_rule" {
-  name = "stepfunction-${data.aws_caller_identity.current.account_id}-deploy-notifications-rule"
-  event_pattern =<<EOF
+  name          = "stepfunction-${data.aws_caller_identity.current.account_id}-deploy-notifications-rule"
+  event_pattern = <<EOF
     {
   "source": [
     "aws.states"
@@ -55,7 +56,7 @@ EOF
 }
 
 resource "aws_cloudwatch_event_target" "lambda_stepfunctions_notifications" {
-  arn = aws_lambda_function.stepfunction_status_slack.arn
+  arn  = aws_lambda_function.stepfunction_status_slack.arn
   rule = aws_cloudwatch_event_rule.deploy_events_rule.name
 }
 

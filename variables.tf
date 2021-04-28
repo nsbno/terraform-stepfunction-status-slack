@@ -11,6 +11,12 @@ variable "artifact_bucket_name" {
   default     = ""
 }
 
+variable "state_machine_arns" {
+  description = "An optional list of ARNs of AWS Step Functions state machines to report updates on. Default behavior is to report updates for all state machines in the current region."
+  default     = []
+  type        = list(string)
+}
+
 variable "slackwebhook" {
   description = "The slack webhook URL"
   type        = string

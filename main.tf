@@ -42,15 +42,24 @@ resource "aws_iam_role_policy" "logs_to_stepfunction_status_slack_lambda" {
 }
 
 resource "aws_cloudwatch_event_rule" "deploy_events_rule" {
-  name          = "stepfunction-${data.aws_caller_identity.current.account_id}-deploy-notifications-rule"
+  name        = "${var.name_prefix}-sfn-execution-change"
+  description = "Triggers when an AWS Step Functions state machine execution starts, succeeds or fails"
+  tags        = var.tags
   event_pattern = <<EOF
-    {
+{
   "source": [
     "aws.states"
   ],
   "detail-type": [
     "Step Functions Execution Status Change"
-  ]
+  ],
+  "detail": {
+    "stateMachineArn": ${
+  length(var.state_machine_arns) > 0
+  ? jsonencode(var.state_machine_arns)
+  # This pattern will match all state machine ARNs
+: jsonencode([{ prefix = "" }])}
+  }
 }
 EOF
 }

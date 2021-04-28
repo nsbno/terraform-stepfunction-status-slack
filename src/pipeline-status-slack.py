@@ -5,13 +5,14 @@ import urllib
 import boto3
 import uuid
 from datetime import datetime
-from urllib import request
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def find_event_by_backtracking(initial_event, events, condition_fn, break_fn=None):
+def find_event_by_backtracking(
+    initial_event, events, condition_fn, break_fn=None
+):
     """Backtracks to the first event that matches a specific condition and returns that event"""
     event = initial_event
     visited_events = []
@@ -33,19 +34,69 @@ def find_event_by_backtracking(initial_event, events, condition_fn, break_fn=Non
 def get_fail_events(events, excluded_states=[]):
     """Return the events that failed during an execution"""
     fail_events = []
+    execution_failure_event = None
     for e in events:
         # Different state types use different names for storing details about the failed event
         # `taskFailedEventDetails`, `activityFailedEventDetails`, etc.
-        failed_event_details = e.get(next((key for key in e if (key.endswith(
-            "FailedEventDetails") or key.endswith("TimedOutEventDetails")) and all(required_key in e[key] for required_key in ["error"])), None), None)
-        if failed_event_details and (e["type"].endswith("Failed") or e["type"].endswith("TimedOut")) and e["type"] != "ExecutionFailed":
-            enter_event = find_event_by_backtracking(e, events, lambda current_event: current_event["type"].endswith("StateEntered") and current_event["stateEnteredEventDetails"]["name"] not in excluded_states, break_fn=lambda visited_events: any(
-                visited_event["type"].endswith("StateEntered") for visited_event in visited_events))
-            if enter_event:
-                state_name = enter_event["stateEnteredEventDetails"]["name"]
-                # Save failed_event_details to `failedEventDetails` to make it easier and more consistent to reference
-                fail_events.append(
-                    {**e, "name": state_name, "failedEventDetails": failed_event_details})
+        failed_event_details = e.get(
+            next(
+                (
+                    key
+                    for key in e
+                    if (
+                        key.endswith("FailedEventDetails")
+                        or key.endswith("TimedOutEventDetails")
+                    )
+                    and all(
+                        required_key in e[key] for required_key in ["error"]
+                    )
+                ),
+                None,
+            ),
+            None,
+        )
+        if failed_event_details and (
+            e["type"].endswith("Failed") or e["type"].endswith("TimedOut")
+        ):
+            if e["type"] == "ExecutionFailed":
+                execution_failure_event = {
+                    **e,
+                    "name": "Unknown state",
+                    "failedEventDetails": failed_event_details,
+                }
+            else:
+                enter_event = find_event_by_backtracking(
+                    e,
+                    events,
+                    lambda current_event: current_event["type"].endswith(
+                        "StateEntered"
+                    )
+                    and current_event["stateEnteredEventDetails"]["name"]
+                    not in excluded_states,
+                    break_fn=lambda visited_events: any(
+                        visited_event["type"].endswith("StateEntered")
+                        for visited_event in visited_events
+                    ),
+                )
+                if enter_event:
+                    state_name = enter_event["stateEnteredEventDetails"][
+                        "name"
+                    ]
+                    # Save failed_event_details to `failedEventDetails` to make it easier and more consistent to reference
+                    fail_events.append(
+                        {
+                            **e,
+                            "name": state_name,
+                            "failedEventDetails": failed_event_details,
+                        }
+                    )
+
+    # We only include the execution failure event if we haven't found any `TaskFailed` events.
+    # This can typically occur if an execution fails due to a task state referencing
+    # non-existing JSON keys in the state machine definition.
+    if len(fail_events) == 0 and execution_failure_event:
+        fail_events.append(execution_failure_event)
+
     return fail_events
 
 
@@ -68,22 +119,55 @@ def get_failed_message(execution_arn, client=None):
                 f"{'```' + fail_events[0]['failedEventDetails']['cause'] + '```' if 'cause' in fail_events[0]['failedEventDetails'] else ''}"
             )
         else:
-            state_names = ', '.join([f"`{e['name']}`" for e in fail_events])
+            state_names = ", ".join([f"`{e['name']}`" for e in fail_events])
             errors = "\n".join(
-                [(
-                    f"`{e['name']}` failed due to `{e['failedEventDetails']['error']}`:\n"
-                    f"{'```' + e['failedEventDetails']['cause'] + '```' if 'cause' in e['failedEventDetails'] else ''}"
-                ) for e in fail_events])
+                [
+                    (
+                        f"`{e['name']}` failed due to `{e['failedEventDetails']['error']}`:\n"
+                        f"{'```' + e['failedEventDetails']['cause'] + '```' if 'cause' in e['failedEventDetails'] else ''}"
+                    )
+                    for e in fail_events
+                ]
+            )
             return (
                 f"*Status:* Failed in states {state_names}\n"
                 f"*Errors:*\n"
                 f"{errors}"
             )
     return (
-        f"*Status:* Failed in state `Unknown state`\n"
-        f"*Error:* `Unknown error`\n"
-        f"```Unknown```"
+        "*Status:* Failed in state `Unknown state`\n"
+        "*Error:* `Unknown error`\n"
+        "```Unknown```"
     )
+
+
+def get_success_message(execution_arn, report_failed_events, client=None):
+    """Returns a Markdown-formatted string describing the execution's success"""
+    if client is None:
+        client = boto3.client("stepfunctions")
+
+    message = "*Status:* Successfully finished"
+    if report_failed_events:
+        client = boto3.client("stepfunctions")
+        response = client.get_execution_history(
+            executionArn=execution_arn, maxResults=500, reverseOrder=True
+        )
+        events = response["events"]
+        fail_events = get_fail_events(events, excluded_states=["Raise Errors"])
+        if len(fail_events):
+            message = f"*Status:* Successfully* finished (_* {len(fail_events)} error(s) were caught and handled_)"
+            state_names = ", ".join([f"`{e['name']}`" for e in fail_events])
+            errors = "\n".join(
+                [
+                    (
+                        f"`{e['name']}` failed due to `{e['failedEventDetails']['error']}`, but the error was caught:\n"
+                        f"{'```' + e['failedEventDetails']['cause'] + '```' if 'cause' in e['failedEventDetails'] else ''}"
+                    )
+                    for e in fail_events
+                ]
+            )
+            message += "\n" + errors
+    return message
 
 
 def lambda_handler(event, context):
@@ -91,6 +175,9 @@ def lambda_handler(event, context):
     region = os.environ["AWS_REGION"]
     slack_webhook_url = os.environ["slackwebhook"]
     state_to_notify = os.environ["statestonotify"]
+    report_failed_events_on_success = (
+        os.environ["REPORT_FAILED_EVENTS_ON_SUCCESS"] == "true"
+    )
 
     status = event["detail"]["status"]
 
@@ -103,11 +190,16 @@ def lambda_handler(event, context):
     timestamp = event["time"].split(".")[0]
     timestamp = datetime.strptime(timestamp[:-1], "%Y-%m-%dT%H:%M:%S")
     execution_input = json.loads(event["detail"]["input"])
+    additional_slack_webhook_urls = execution_input.get(
+        "slack_webhook_urls", []
+    )
+    slack_webhook_urls = list(
+        set([slack_webhook_url] + additional_slack_webhook_urls)
+    )
     toggling_cost_saving_mode = execution_input.get(
-        "toggling_cost_saving_mode", False)
-    slack_message = [
-        f"*Execution:* <{execution_url}|{execution_name}>"
-    ]
+        "toggling_cost_saving_mode", False
+    )
+    slack_message = [f"*Execution:* <{execution_url}|{execution_name}>"]
     manually_triggered = False
     try:
         manually_triggered = str(uuid.UUID(execution_name)) == execution_name
@@ -116,33 +208,46 @@ def lambda_handler(event, context):
     footer = ""
     if manually_triggered:
         footer = "Triggered by AWS Console"
-    elif all(key in execution_input for key in ["git_user", "git_repo", "git_branch"]):
-        footer = f"Triggered by {execution_input['git_user']} @ {execution_input['git_repo']} ({execution_input['git_branch']})"
+    elif all(
+        execution_input.get(key, None)
+        for key in ["git_user", "git_repo", "git_branch"]
+    ):
+        footer = f"Triggered by {execution_input['git_user']} from repository {execution_input['git_repo']} [{execution_input['git_branch']}]"
+    elif all(
+        execution_input.get(key, None) for key in ["git_repo", "git_branch"]
+    ):
+        footer = f"Triggered from repository {execution_input['git_repo']} [{execution_input['git_branch']}]"
 
     if toggling_cost_saving_mode:
         slack_message.append(
-            f"*Type:* Automatic deployment (toggling cost-saving mode)")
+            "*Type:* Automatic deployment (toggling cost-saving mode)"
+        )
 
-    if status == 'RUNNING':
-        slack_color = 'good'
+    if status == "RUNNING":
+        slack_color = "good"
         slack_message.append("*Status:* Started")
-        slack_message.append(f"*Input*:\n```{json.dumps(execution_input, sort_keys=True, indent=2)}```")
-    elif status == 'SUCCEEDED':
-        slack_color = 'good'
-        slack_message.append("*Status:* Successfully finished")
+        slack_message.append(
+            f"*Input*:\n```{json.dumps(execution_input, sort_keys=True, indent=2)}```"
+        )
+    elif status == "SUCCEEDED":
+        slack_color = "good"
+        success_message = get_success_message(
+            execution_arn, report_failed_events_on_success
+        )
+        slack_message.append(success_message)
     elif status == "FAILED":
-        slack_color = 'danger'
+        slack_color = "danger"
         failed_message = get_failed_message(execution_arn)
         slack_message.append(failed_message)
     elif status == "ABORTED":
-        slack_color = 'danger'
-        slack_message.append('*Status:* Execution was manually aborted')
+        slack_color = "danger"
+        slack_message.append("*Status:* Execution was manually aborted")
     elif status == "TIMED_OUT":
-        slack_color = 'danger'
-        slack_message.append('*Status:* Execution timed out')
+        slack_color = "danger"
+        slack_message.append("*Status:* Execution timed out")
     else:
-        slack_color = 'danger'
-        slack_message.append(f'*Status:* Unknown execution status `{status}`')
+        slack_color = "danger"
+        slack_message.append(f"*Status:* Unknown execution status `{status}`")
 
     slack_attachment = {
         "attachments": [
@@ -153,20 +258,24 @@ def lambda_handler(event, context):
                 "color": slack_color,
                 "mrkdwn_in": ["text"],
                 "footer": footer,
-                "ts": int(timestamp.timestamp())
+                "ts": int(timestamp.timestamp()),
             }
         ]
     }
 
-    try:
-        json_data = json.dumps(slack_attachment)
-        logger.info("\nOutput " + str(json_data))
-        if slack_color == "danger" or state_to_notify == "all":
-            slack_request = urllib.request.Request(
-                slack_webhook_url,
-                data=json_data.encode("ascii"),
-                headers={"Content-Type": "application/json"},
-            )
-            slack_response = urllib.request.urlopen(slack_request)
-    except Exception as em:
-        logger.exception("EXCEPTION: " + str(em))
+    json_data = json.dumps(slack_attachment)
+    logger.info("\nOutput " + str(json_data))
+    if slack_color == "danger" or state_to_notify == "all":
+        for url in slack_webhook_urls:
+            try:
+                slack_request = urllib.request.Request(
+                    url,
+                    data=json_data.encode("ascii"),
+                    headers={"Content-Type": "application/json"},
+                )
+                slack_response = urllib.request.urlopen(slack_request)
+            except:
+                logger.exception(
+                    "Failed to post message to Slack webhook URL '%s'",
+                    url,
+                )

@@ -23,8 +23,9 @@ resource "aws_lambda_function" "stepfunction_status_slack" {
   tags             = var.tags
   environment {
     variables = {
-      slackwebhook   = var.slackwebhook
-      statestonotify = var.statestonotify
+      REPORT_FAILED_EVENTS_ON_SUCCESS = var.report_failed_events_on_success
+      slackwebhook                    = var.slackwebhook
+      statestonotify                  = var.statestonotify
     }
   }
 }
@@ -74,4 +75,3 @@ resource "aws_lambda_permission" "allow_cloudwatch_stepfunction_notifications" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.deploy_events_rule.arn
 }
-

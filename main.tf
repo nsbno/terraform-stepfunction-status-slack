@@ -26,6 +26,7 @@ resource "aws_lambda_function" "stepfunction_status_slack" {
       REPORT_FAILED_EVENTS_ON_SUCCESS = var.report_failed_events_on_success
       slackwebhook                    = var.slackwebhook
       statestonotify                  = var.statestonotify
+      ATTENTION                       = var.attention_on_failure
     }
   }
 }

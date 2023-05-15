@@ -44,7 +44,7 @@ variable "lambda_timeout" {
   default     = 10
 }
 
-variable "attention_on_failure" {
+variable "tag_channel_on_failure" {
   description = "Add @here mention to Slack message on failure"
   type        = bool
   default     = false

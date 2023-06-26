@@ -200,6 +200,7 @@ def lambda_handler(event, context):
         "toggling_cost_saving_mode", False
     )
     slack_message = [f"*Execution:* <{execution_url}|{execution_name}>"]
+    tag_channel_on_failure = os.environ["TAG_CHANNEL_ON_FAILURE"] == "true"
     manually_triggered = False
     try:
         manually_triggered = str(uuid.UUID(execution_name)) == execution_name
@@ -248,6 +249,9 @@ def lambda_handler(event, context):
     else:
         slack_color = "danger"
         slack_message.append(f"*Status:* Unknown execution status `{status}`")
+
+    if tag_channel_on_failure and slack_color == "danger":
+        slack_message.append(f"<!here>")
 
     slack_attachment = {
         "attachments": [
